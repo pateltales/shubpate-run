@@ -1013,19 +1013,30 @@ function renderAchievements(runs, prs){
   const hasRace=runs.some(r=>r.is_race);
   const years=new Set(runs.map(r=>yr(r.date))).size;
 
+  // Pre-compute values that can't be IIFEs inside object literals
+  const yrRunMap={};
+  runs.forEach(r=>{const y=yr(r.date);yrRunMap[y]=(yrRunMap[y]||0)+1;});
+  const isConsistencyKing=Object.values(yrRunMap).some(v=>v>=100);
+
+  const longHaulerRun=runs.filter(r=>r.distance_miles>=20).sort((a,b)=>b.distance_miles-a.distance_miles)[0];
+  const longHaulerMeta=longHaulerRun?`${longHaulerRun.distance_miles.toFixed(1)} mi · ${fmtFull(longHaulerRun.date)}`:'';
+
+  const speedDemonRun=runs.filter(r=>r.distance_miles>=10&&r.pace&&paceS(r.pace)<480).sort((a,b)=>paceS(a.pace)-paceS(b.pace))[0];
+  const speedDemonMeta=speedDemonRun?`Best: ${speedDemonRun.pace}/mi`:'';
+
   const BADGES=[
     { icon:'🏅', name:'Marathon Finisher', desc:'Completed a full 26.2', earned:has('marathon'), meta:prs?.marathon?.date?`${fmtFull(prs.marathon.date)} · ${prs.marathon.time}`:'Earned' },
     { icon:'⚡', name:'Sub-20 5K', desc:'Ran a 5K in under 20 minutes', earned:prs?.['5k']&&timeS(prs['5k'].time)<1200, meta:prs?.['5k']?prs['5k'].time:'' },
     { icon:'💯', name:'Century Month', desc:`${Math.round(bestMonthMi)} mi in one month`, earned:bestMonthMi>=100, meta:bestMonthKey?new Date(bestMonthKey+'-01T00:00:00').toLocaleDateString('en-US',{month:'long',year:'numeric'}):'' },
-    { icon:'🦁', name:'Long Hauler', desc:'Ran 20+ miles in one go', earned:runs.some(r=>r.distance_miles>=20), meta:()=>{const r=runs.filter(r=>r.distance_miles>=20).sort((a,b)=>b.distance_miles-a.distance_miles)[0];return r?`${r.distance_miles.toFixed(1)} mi · ${fmtFull(r.date)}`:'';} },
+    { icon:'🦁', name:'Long Hauler', desc:'Ran 20+ miles in one go', earned:runs.some(r=>r.distance_miles>=20), meta:longHaulerMeta },
     { icon:'⭐', name:'5,000 Mile Club', desc:'5,000+ career miles logged', earned:totalMi>=5000, meta:`${totalMi.toFixed(0)} mi total` },
     { icon:'🔥', name:'Iron Streak', desc:'7+ consecutive days running', earned:streak>=7, meta:`Longest: ${streak} days` },
     { icon:'🏔️', name:'Mountain Mover', desc:'Climbed Everest 10× in elevation', earned:totalElev>=290320, meta:`${(totalElev/29032).toFixed(1)}× Everest total` },
     { icon:'🗓️', name:'Decade of Miles', desc:'Running consistently for 10+ years', earned:years>=10, meta:`${years} active years` },
     { icon:'🏆', name:'Race Day', desc:'Toed the start line of an official race', earned:hasRace, meta:`${app.run_stats.total_races} races finished` },
     { icon:'🌅', name:'Half Marathon Hero', desc:'Completed a half marathon', earned:has('half_marathon'), meta:prs?.half_marathon?`PR: ${prs.half_marathon.time}`:'' },
-    { icon:'💎', name:'Consistency King', desc:'Ran 100+ times in a single year', earned:()=>{const ym={};runs.forEach(r=>{const y=yr(r.date);ym[y]=(ym[y]||0)+1;});return Object.values(ym).some(v=>v>=100);}(), meta:`${runs.length} total runs` },
-    { icon:'🚀', name:'Speed Demon', desc:'Sub-8 min/mi pace over 10+ miles', earned:runs.some(r=>r.distance_miles>=10&&r.pace&&paceS(r.pace)<480), meta:()=>{const r=runs.filter(r=>r.distance_miles>=10&&r.pace&&paceS(r.pace)<480).sort((a,b)=>paceS(a.pace)-paceS(b.pace))[0];return r?`Best: ${r.pace}/mi`:'';}() },
+    { icon:'💎', name:'Consistency King', desc:'Ran 100+ times in a single year', earned:isConsistencyKing, meta:`${runs.length} total runs` },
+    { icon:'🚀', name:'Speed Demon', desc:'Sub-8 min/mi pace over 10+ miles', earned:!!speedDemonRun, meta:speedDemonMeta },
   ];
 
   document.getElementById('badges-grid').innerHTML=BADGES.map(b=>{
