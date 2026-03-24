@@ -193,19 +193,26 @@ function formatActivity(a, type) {
   console.log(`  Runs:  ${rawRuns.length}`);
   console.log(`  Rides: ${rawRides.length}`);
 
-  // Run PRs
+  // Run PRs — compare by pace (sec/mile), not raw time, so a short 3-mile
+  // run doesn't beat an actual 5K race just because it finished sooner.
+  const PR_TARGETS = { '5k': 3.107, '10k': 6.214, 'half_marathon': 13.109, 'marathon': 26.219 };
   const prCategories = { '5k': [], '10k': [], 'half_marathon': [], 'marathon': [] };
   rawRuns.forEach(r => {
     const cat = classifyRunDistance(r.distance);
     if (prCategories[cat]) {
-      prCategories[cat].push({ time: r.moving_time, date: r.start_date, name: r.name });
+      const miles = r.distance / 1609.344;
+      const secsPerMile = r.moving_time / miles;
+      prCategories[cat].push({ secsPerMile, moving_time: r.moving_time, distance: r.distance, date: r.start_date, name: r.name });
     }
   });
   const prs = {};
   for (const [dist, efforts] of Object.entries(prCategories)) {
     if (efforts.length) {
-      const best = efforts.reduce((a, b) => a.time < b.time ? a : b);
-      prs[dist] = { time: formatTime(best.time), date: best.date.split('T')[0], name: best.name };
+      // Pick the effort with the fastest pace
+      const best = efforts.reduce((a, b) => a.secsPerMile < b.secsPerMile ? a : b);
+      // Project that pace to the exact standard distance
+      const prSecs = Math.round(best.secsPerMile * PR_TARGETS[dist]);
+      prs[dist] = { time: formatTime(prSecs), date: best.date.split('T')[0], name: best.name };
     }
   }
 
