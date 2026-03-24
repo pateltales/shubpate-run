@@ -289,6 +289,9 @@
     .period-tab.active { background:var(--accent); color:#000; border-color:var(--accent); font-weight:600; }
     body.ride-mode .period-tab.active { color:#fff; }
     .charts-row { display:grid; grid-template-columns:2fr 1fr; gap:1.25rem; }
+    .charts-row-wide { display:grid; grid-template-columns:3fr 2fr; gap:1.25rem; }
+    .chart-full { width:100%; }
+    .charts-block { display:flex; flex-direction:column; gap:1.25rem; }
     .chart-card {
       background:var(--surface); border:1px solid var(--border);
       border-radius:var(--r); padding:1.5rem;
@@ -526,7 +529,7 @@
       .hero-stats-grid { grid-template-columns:repeat(4,1fr); }
       .prs-grid { grid-template-columns:repeat(2,1fr); }
       .badges-grid { grid-template-columns:repeat(2,1fr); }
-      .charts-row { grid-template-columns:1fr; }
+      .charts-row, .charts-row-wide { grid-template-columns:1fr; }
       .facts-inner { grid-template-columns:repeat(2,1fr); }
     }
     @media(max-width:600px) {
@@ -658,15 +661,46 @@
       <button class="period-tab" data-p="yearly" onclick="setPeriod('yearly')">10 Years</button>
     </div>
   </div>
-  <div class="charts-row">
-    <div class="chart-card reveal">
-      <div class="chart-title" id="progress-chart-title">Miles per Month</div>
-      <canvas id="chart-progress" height="200"></canvas>
+  <div class="charts-block">
+
+    <!-- Row 1: Volume + Elevation -->
+    <div class="charts-row reveal">
+      <div class="chart-card">
+        <div class="chart-title" id="progress-chart-title">Miles per Month</div>
+        <canvas id="chart-progress" height="200"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title" id="elevation-chart-title">Elevation per Month (ft)</div>
+        <canvas id="chart-elevation" height="200"></canvas>
+      </div>
     </div>
-    <div class="chart-card reveal">
+
+    <!-- Row 2: Cumulative (full width, tall) -->
+    <div class="chart-card chart-full reveal">
       <div class="chart-title">Cumulative Miles by Year</div>
-      <canvas id="chart-cumulative" height="200"></canvas>
+      <div style="position:relative;height:340px;">
+        <canvas id="chart-cumulative"></canvas>
+      </div>
     </div>
+
+    <!-- Row 3: Pace / Speed Trend + HR Zones -->
+    <div class="charts-row-wide reveal">
+      <div class="chart-card">
+        <div class="chart-title" id="pace-chart-title">Pace Over Time (min/mile)</div>
+        <canvas id="chart-pace" height="200"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Heart Rate Zones</div>
+        <canvas id="chart-hr" height="200"></canvas>
+      </div>
+    </div>
+
+    <!-- Row 4: Distance Distribution (full width) -->
+    <div class="chart-card chart-full reveal">
+      <div class="chart-title" id="dist-chart-title">Distance Distribution</div>
+      <canvas id="chart-dist" height="70"></canvas>
+    </div>
+
   </div>
 </div>
 
@@ -753,7 +787,7 @@ const PAGE = 25;
 let app = null, mode = 'run', period = 'monthly';
 let allItems = [], filtered = [], curPage = 1;
 let sortKey = 'date', sortDir = -1;
-let chartProgress = null, chartCumulative = null;
+let chartProgress = null, chartCumulative = null, chartElevation = null, chartPace = null, chartHR = null, chartDist = null;
 
 // ═══════════════════════════════════════════════════
 // UTILS
@@ -842,6 +876,9 @@ function setMode(m){
   updateHeroStats();
   updateProgressChart();
   updateCumulativeChart();
+  updateElevationChart();
+  updatePaceChart();
+  updateDistChart();
   updateFacts();
   updateLog();
 }
@@ -985,17 +1022,18 @@ function setPeriod(p){
   period=p;
   document.querySelectorAll('.period-tab').forEach(t=>t.classList.toggle('active',t.dataset.p===p));
   updateProgressChart();
+  updateElevationChart();
 }
 
-function buildPeriodData(items){
+function buildPeriodData(items, valFn=r=>r.distance_miles){
   if(period==='daily'){
     const today=new Date(); today.setHours(0,0,0,0);
     const map={};
-    items.forEach(r=>{ map[r.date]=(map[r.date]||0)+r.distance_miles; });
+    items.forEach(r=>{ map[r.date]=(map[r.date]||0)+valFn(r); });
     return Array.from({length:60},(_,i)=>{
       const d=new Date(today); d.setDate(d.getDate()-(59-i));
       const iso=d.toISOString().split('T')[0];
-      return { label:d.toLocaleDateString('en-US',{month:'short',day:'numeric'}), miles:map[iso]||0 };
+      return { label:d.toLocaleDateString('en-US',{month:'short',day:'numeric'}), miles:map[iso]||0, val:map[iso]||0 };
     });
   }
   if(period==='monthly'){
@@ -1003,16 +1041,16 @@ function buildPeriodData(items){
     return Array.from({length:12},(_,i)=>{
       const d=new Date(today.getFullYear(),today.getMonth()-(11-i),1);
       const key=d.toISOString().substring(0,7);
-      const miles=items.filter(r=>r.date.startsWith(key)).reduce((s,r)=>s+r.distance_miles,0);
-      return { label:d.toLocaleDateString('en-US',{month:'short',year:'2-digit'}), miles };
+      const val=items.filter(r=>r.date.startsWith(key)).reduce((s,r)=>s+valFn(r),0);
+      return { label:d.toLocaleDateString('en-US',{month:'short',year:'2-digit'}), miles:val, val };
     });
   }
   // yearly — last 10
   const curYr=new Date().getFullYear();
   return Array.from({length:10},(_,i)=>{
     const y=(curYr-9+i).toString();
-    const miles=items.filter(r=>r.date.startsWith(y)).reduce((s,r)=>s+r.distance_miles,0);
-    return { label:y, miles };
+    const val=items.filter(r=>r.date.startsWith(y)).reduce((s,r)=>s+valFn(r),0);
+    return { label:y, miles:val, val };
   });
 }
 
@@ -1106,7 +1144,7 @@ function updateCumulativeChart(){
     chartCumulative=new Chart(document.getElementById('chart-cumulative').getContext('2d'),{
       type:'line', data:{datasets},
       options:{
-        responsive:true, maintainAspectRatio:true, parsing:false,
+        responsive:true, maintainAspectRatio:false, parsing:false,
         plugins:{
           legend:{display:true,position:'bottom',labels:{color:'#64748B',font:{family:'IBM Plex Mono',size:9},boxWidth:16,usePointStyle:true,pointStyle:'line',filter:i=>parseInt(curYr)-parseInt(i.text)<=5}},
           tooltip:{backgroundColor:'#1C2333',borderColor:'#2A3344',borderWidth:1,titleColor:'#64748B',bodyColor:'#E2E8F0',callbacks:{title:i=>`Day ${i[0].parsed.x}`,label:c=>` ${c.dataset.label}: ${c.parsed.y.toFixed(0)} mi`}}
@@ -1116,6 +1154,212 @@ function updateCumulativeChart(){
             ticks:{color:'#64748B',font:{family:'IBM Plex Mono',size:9},callback:v=>{const i=MDAYS.indexOf(v);return i>=0?MNAMES[i]:'';}},
             afterBuildTicks:s=>{s.ticks=MDAYS.map(v=>({value:v}));},border:{color:'#2A3344'}},
           y:{grid:{color:'rgba(42,51,68,.4)'},ticks:{color:'#64748B',font:{family:'IBM Plex Mono',size:9}},border:{color:'transparent'}}
+        }
+      }
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// ELEVATION CHART  (period-aware, mirrors volume chart)
+// ═══════════════════════════════════════════════════
+function updateElevationChart(){
+  const items=mode==='run'?app.runs:app.rides;
+  const color=mode==='run'?'#F59E0B':'#3B82F6';
+  const colorDim=mode==='run'?'rgba(245,158,11,.6)':'rgba(59,130,246,.6)';
+
+  const titleMap={daily:'Elevation per Day (ft)',monthly:'Elevation per Month (ft)',yearly:'Elevation per Year (ft)'};
+  document.getElementById('elevation-chart-title').textContent=titleMap[period];
+
+  // bucket by same period logic but using elevation_gain_ft
+  const data=buildPeriodData(items, r=>r.elevation_gain_ft||0);
+
+  if(chartElevation){
+    chartElevation.data.labels=data.map(d=>d.label);
+    chartElevation.data.datasets[0].data=data.map(d=>Math.round(d.val));
+    chartElevation.data.datasets[0].backgroundColor=data.map(d=>d.val>0?colorDim:'rgba(42,51,68,.4)');
+    chartElevation.data.datasets[0].hoverBackgroundColor=color;
+    chartElevation.update();
+  } else {
+    const opts=CHART_OPTS(color);
+    opts.plugins.tooltip.callbacks.label=c=>`${c.parsed.y.toLocaleString()} ft`;
+    chartElevation=new Chart(document.getElementById('chart-elevation').getContext('2d'),{
+      type:'bar',
+      data:{
+        labels:data.map(d=>d.label),
+        datasets:[{
+          data:data.map(d=>Math.round(d.val)),
+          backgroundColor:data.map(d=>d.val>0?colorDim:'rgba(42,51,68,.4)'),
+          hoverBackgroundColor:color,
+          borderRadius:3, borderSkipped:false,
+        }]
+      },
+      options:opts
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// PACE / SPEED TREND  (scatter + rolling avg)
+// ═══════════════════════════════════════════════════
+function updatePaceChart(){
+  const isRun=mode==='run';
+  const color=isRun?'#22C55E':'#3B82F6';
+  const colorDot=isRun?'rgba(34,197,94,.25)':'rgba(59,130,246,.25)';
+
+  document.getElementById('pace-chart-title').textContent=
+    isRun?'Pace Over Time (min/mile)':'Speed Over Time (mph)';
+
+  const items=(isRun?app.runs:app.rides)
+    .filter(r=>r.distance_miles>1&&(isRun?r.pace:r.speed_mph))
+    .sort((a,b)=>a.date.localeCompare(b.date));
+
+  const yVal=r=>isRun?paceS(r.pace):r.speed_mph;
+
+  const dots=items.map(r=>({x:r.date,y:yVal(r),name:r.name,dist:r.distance_miles.toFixed(1)}));
+
+  // 25-run rolling average
+  const W=25;
+  const rolled=dots.map((_,i)=>{
+    const sl=dots.slice(Math.max(0,i-W+1),i+1);
+    return {x:_.x, y:parseFloat((sl.reduce((s,d)=>s+d.y,0)/sl.length).toFixed(isRun?0:1))};
+  });
+
+  const fmtY=v=>isRun?`${Math.floor(v/60)}:${(v%60).toString().padStart(2,'0')}/mi`:`${v} mph`;
+
+  const datasets=[
+    {
+      label:'Activity', data:dots, type:'scatter',
+      pointBackgroundColor:colorDot, pointBorderColor:'transparent',
+      pointRadius:3, pointHoverRadius:5, order:2,
+    },
+    {
+      label:`${W}-run avg`, data:rolled, type:'line',
+      borderColor:color, borderWidth:2.5,
+      pointRadius:0, tension:.3, backgroundColor:'transparent',
+      order:1,
+    }
+  ];
+
+  const scaleY=isRun?{
+    reverse:true, // lower pace = faster = better
+    grid:{color:'rgba(42,51,68,.5)'},
+    ticks:{color:'#64748B',font:{family:'IBM Plex Mono',size:9},
+      callback:v=>`${Math.floor(v/60)}:${(v%60).toString().padStart(2,'0')}`},
+    border:{color:'transparent',dash:[4,4]}
+  }:{
+    grid:{color:'rgba(42,51,68,.5)'},
+    ticks:{color:'#64748B',font:{family:'IBM Plex Mono',size:9},callback:v=>`${v} mph`},
+    border:{color:'transparent',dash:[4,4]}
+  };
+
+  if(chartPace){
+    chartPace.data.datasets=datasets;
+    chartPace.options.scales.y=scaleY;
+    chartPace.update();
+  } else {
+    chartPace=new Chart(document.getElementById('chart-pace').getContext('2d'),{
+      type:'scatter', data:{datasets},
+      options:{
+        responsive:true, maintainAspectRatio:true,
+        plugins:{
+          legend:{display:true,position:'top',align:'end',labels:{color:'#64748B',font:{family:'IBM Plex Mono',size:9},boxWidth:20,usePointStyle:true}},
+          tooltip:{backgroundColor:'#1C2333',borderColor:'#2A3344',borderWidth:1,
+            titleColor:'#64748B',bodyColor:'#E2E8F0',
+            callbacks:{
+              title:i=>`${i[0].raw.name||i[0].raw.x}`,
+              label:i=>`${fmtY(i.raw.y)}  ·  ${i.raw.dist||''} mi`
+            }}
+        },
+        scales:{
+          x:{type:'category',grid:{display:false},ticks:{color:'#64748B',font:{family:'IBM Plex Mono',size:9},maxTicksLimit:10,maxRotation:0},border:{color:'#2A3344'}},
+          y:scaleY
+        }
+      }
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// HEART RATE ZONES  (donut)
+// ═══════════════════════════════════════════════════
+function updateHRZonesChart(){
+  const items=app.runs.filter(r=>r.average_heartrate>0);
+  const zones=[0,0,0,0,0];
+  items.forEach(r=>{
+    const hr=r.average_heartrate;
+    if(hr<130)zones[0]++;
+    else if(hr<145)zones[1]++;
+    else if(hr<160)zones[2]++;
+    else if(hr<175)zones[3]++;
+    else zones[4]++;
+  });
+  const labels=['Z1 Recovery <130','Z2 Aerobic 130–145','Z3 Tempo 145–160','Z4 Threshold 160–175','Z5 Max 175+'];
+  const colors=['#1e3a5f','#2563eb','#22C55E','#F59E0B','#ef4444'];
+
+  if(chartHR){
+    chartHR.data.datasets[0].data=zones;
+    chartHR.update();
+  } else {
+    chartHR=new Chart(document.getElementById('chart-hr').getContext('2d'),{
+      type:'doughnut',
+      data:{labels,datasets:[{data:zones,backgroundColor:colors,borderColor:'#111827',borderWidth:3,hoverOffset:6}]},
+      options:{
+        responsive:true, maintainAspectRatio:true, cutout:'62%',
+        plugins:{
+          legend:{display:true,position:'bottom',labels:{color:'#64748B',font:{family:'IBM Plex Mono',size:9},boxWidth:12,padding:8}},
+          tooltip:{backgroundColor:'#1C2333',borderColor:'#2A3344',borderWidth:1,
+            callbacks:{label:c=>`${c.label}: ${c.parsed} runs (${((c.parsed/items.length)*100).toFixed(0)}%)`}}
+        }
+      }
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// DISTANCE DISTRIBUTION  (horizontal bar)
+// ═══════════════════════════════════════════════════
+function updateDistChart(){
+  const isRun=mode==='run';
+  const items=isRun?app.runs:app.rides;
+  const color=isRun?'#22C55E':'#3B82F6';
+  const colorDim=isRun?'rgba(34,197,94,.55)':'rgba(59,130,246,.55)';
+
+  document.getElementById('dist-chart-title').textContent=
+    isRun?'Run Distance Distribution':'Ride Distance Distribution';
+
+  const cats=isRun
+    ?['marathon','half_marathon','15k','10k','5k','other']
+    :['century','gran_fondo','long','medium','short'];
+  const lbls=isRun
+    ?['Marathon (26.2+mi)','Half Marathon (13+mi)','15K (9+mi)','10K (5.5+mi)','5K (2.8+mi)','Short (<3mi)']
+    :['Century (100+mi)','Gran Fondo (50+mi)','Long (25+mi)','Medium (10+mi)','Short (<10mi)'];
+
+  const counts=cats.map(c=>items.filter(r=>r.distance_category===c).length);
+  const bgs=counts.map((v,i)=>i===0?color:colorDim);
+
+  if(chartDist){
+    chartDist.data.labels=lbls;
+    chartDist.data.datasets[0].data=counts;
+    chartDist.data.datasets[0].backgroundColor=bgs;
+    chartDist.data.datasets[0].hoverBackgroundColor=color;
+    chartDist.update();
+  } else {
+    chartDist=new Chart(document.getElementById('chart-dist').getContext('2d'),{
+      type:'bar',
+      data:{labels:lbls,datasets:[{data:counts,backgroundColor:bgs,hoverBackgroundColor:color,borderRadius:4,borderSkipped:false}]},
+      options:{
+        indexAxis:'y',
+        responsive:true, maintainAspectRatio:true,
+        plugins:{
+          legend:{display:false},
+          tooltip:{backgroundColor:'#1C2333',borderColor:'#2A3344',borderWidth:1,
+            titleColor:'#64748B',bodyColor:color,
+            callbacks:{label:c=>`${c.parsed.x} ${isRun?'runs':'rides'}`}}
+        },
+        scales:{
+          x:{grid:{color:'rgba(42,51,68,.5)'},ticks:{color:'#64748B',font:{family:'IBM Plex Mono',size:9}},border:{color:'transparent'}},
+          y:{grid:{display:false},ticks:{color:'#E2E8F0',font:{family:'IBM Plex Mono',size:9}},border:{color:'#2A3344'}}
         }
       }
     });
@@ -1368,6 +1612,10 @@ async function init(data){
   renderCalendar(app.runs||[],app.rides||[]);
   updateProgressChart();
   updateCumulativeChart();
+  updateElevationChart();
+  updatePaceChart();
+  updateHRZonesChart();
+  updateDistChart();
   renderAchievements(app.runs||[],app.prs||{});
   updateLog();
   setupReveal();
