@@ -663,16 +663,16 @@
   </div>
   <div class="charts-block">
 
-    <!-- Row 1: Volume + Elevation -->
-    <div class="charts-row reveal">
-      <div class="chart-card">
-        <div class="chart-title" id="progress-chart-title">Miles per Month</div>
-        <canvas id="chart-progress" height="200"></canvas>
+    <!-- Row 1: Miles + Elevation stacked on one chart -->
+    <div class="chart-card chart-full reveal">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;margin-bottom:.75rem;">
+        <div class="chart-title" style="margin-bottom:0" id="progress-chart-title">Miles per Month</div>
+        <div style="display:flex;gap:1rem;font-family:var(--mono);font-size:.68rem;color:var(--text-muted);">
+          <span id="combo-legend-miles" style="display:flex;align-items:center;gap:.35rem;"><span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:var(--accent);opacity:.7"></span>Miles</span>
+          <span style="display:flex;align-items:center;gap:.35rem;"><span style="display:inline-block;width:20px;height:2px;background:#F59E0B;"></span>Elevation (ft)</span>
+        </div>
       </div>
-      <div class="chart-card">
-        <div class="chart-title" id="elevation-chart-title">Elevation per Month (ft)</div>
-        <canvas id="chart-elevation" height="200"></canvas>
-      </div>
+      <canvas id="chart-progress" height="160"></canvas>
     </div>
 
     <!-- Row 2: Cumulative (full width, tall) -->
@@ -787,7 +787,7 @@ const PAGE = 25;
 let app = null, mode = 'run', period = 'monthly';
 let allItems = [], filtered = [], curPage = 1;
 let sortKey = 'date', sortDir = -1;
-let chartProgress = null, chartCumulative = null, chartElevation = null, chartPace = null, chartHR = null, chartDist = null;
+let chartProgress = null, chartCumulative = null, chartPace = null, chartHR = null, chartDist = null;
 
 // ═══════════════════════════════════════════════════
 // UTILS
@@ -876,7 +876,6 @@ function setMode(m){
   updateHeroStats();
   updateProgressChart();
   updateCumulativeChart();
-  updateElevationChart();
   updatePaceChart();
   updateDistChart();
   updateFacts();
@@ -1022,7 +1021,6 @@ function setPeriod(p){
   period=p;
   document.querySelectorAll('.period-tab').forEach(t=>t.classList.toggle('active',t.dataset.p===p));
   updateProgressChart();
-  updateElevationChart();
 }
 
 function buildPeriodData(items, valFn=r=>r.distance_miles){
@@ -1073,31 +1071,71 @@ const CHART_OPTS=(color)=>({
 function updateProgressChart(){
   const items=mode==='run'?app.runs:app.rides;
   const color=mode==='run'?'#22C55E':'#3B82F6';
-  const colorDim=mode==='run'?'rgba(34,197,94,.65)':'rgba(59,130,246,.65)';
-  const data=buildPeriodData(items);
+  const colorDim=mode==='run'?'rgba(34,197,94,.55)':'rgba(59,130,246,.55)';
+  const miles=buildPeriodData(items);
+  const elev=buildPeriodData(items, r=>r.elevation_gain_ft||0);
 
-  const titleMap={daily:'Miles per Day (Last 60)',monthly:'Miles per Month (Last 12)',yearly:'Miles per Year (Last 10)'};
+  const titleMap={daily:'Miles per Day · Last 60',monthly:'Miles per Month · Last 12',yearly:'Miles per Year · Last 10'};
   document.getElementById('progress-chart-title').textContent=titleMap[period];
 
+  const labels=miles.map(d=>d.label);
+  const milesData=miles.map(d=>+d.miles.toFixed(1));
+  const elevData=elev.map(d=>Math.round(d.val));
+
   if(chartProgress){
-    chartProgress.data.labels=data.map(d=>d.label);
-    chartProgress.data.datasets[0].data=data.map(d=>+d.miles.toFixed(1));
-    chartProgress.data.datasets[0].backgroundColor=data.map(d=>d.miles>0?colorDim:'rgba(42,51,68,.4)');
+    chartProgress.data.labels=labels;
+    chartProgress.data.datasets[0].data=milesData;
+    chartProgress.data.datasets[0].backgroundColor=milesData.map(v=>v>0?colorDim:'rgba(42,51,68,.4)');
     chartProgress.data.datasets[0].hoverBackgroundColor=color;
+    chartProgress.data.datasets[1].data=elevData;
+    chartProgress.data.datasets[1].borderColor=color==='#22C55E'?'#F59E0B':'#818cf8';
     chartProgress.update();
   } else {
+    const elevColor=color==='#22C55E'?'#F59E0B':'#818cf8';
     chartProgress=new Chart(document.getElementById('chart-progress').getContext('2d'),{
       type:'bar',
       data:{
-        labels:data.map(d=>d.label),
-        datasets:[{
-          data:data.map(d=>+d.miles.toFixed(1)),
-          backgroundColor:data.map(d=>d.miles>0?colorDim:'rgba(42,51,68,.4)'),
-          hoverBackgroundColor:color,
-          borderRadius:3, borderSkipped:false,
-        }]
+        labels,
+        datasets:[
+          {
+            label:'Miles',
+            data:milesData,
+            backgroundColor:milesData.map(v=>v>0?colorDim:'rgba(42,51,68,.4)'),
+            hoverBackgroundColor:color,
+            borderRadius:3, borderSkipped:false,
+            yAxisID:'yMiles', order:2,
+          },
+          {
+            label:'Elevation (ft)',
+            data:elevData,
+            type:'line',
+            borderColor:elevColor, borderWidth:2,
+            pointRadius:0, tension:.35,
+            backgroundColor:'transparent',
+            yAxisID:'yElev', order:1,
+          }
+        ]
       },
-      options:CHART_OPTS(color)
+      options:{
+        responsive:true, maintainAspectRatio:true,
+        plugins:{
+          legend:{display:false},
+          tooltip:{
+            backgroundColor:'#1C2333',borderColor:'#2A3344',borderWidth:1,
+            titleColor:'#64748B',bodyColor:'#E2E8F0',
+            callbacks:{
+              label:c=>c.datasetIndex===0
+                ?` ${c.parsed.y.toFixed(1)} miles`
+                :` ${c.parsed.y.toLocaleString()} ft elev`
+            }
+          }
+        },
+        scales:{
+          x:{grid:{display:false},ticks:{color:'#64748B',font:{family:'IBM Plex Mono',size:9},maxTicksLimit:12,maxRotation:0},border:{color:'#2A3344'}},
+          yMiles:{position:'left',grid:{color:'rgba(42,51,68,.5)'},ticks:{color:'#64748B',font:{family:'IBM Plex Mono',size:9}},border:{color:'transparent',dash:[4,4]}},
+          yElev:{position:'right',grid:{display:false},ticks:{color:'#64748B',font:{family:'IBM Plex Mono',size:9},callback:v=>`${(v/1000).toFixed(0)}k`},border:{color:'transparent'}}
+        }
+      }
     });
   }
 }
@@ -1160,44 +1198,6 @@ function updateCumulativeChart(){
   }
 }
 
-// ═══════════════════════════════════════════════════
-// ELEVATION CHART  (period-aware, mirrors volume chart)
-// ═══════════════════════════════════════════════════
-function updateElevationChart(){
-  const items=mode==='run'?app.runs:app.rides;
-  const color=mode==='run'?'#F59E0B':'#3B82F6';
-  const colorDim=mode==='run'?'rgba(245,158,11,.6)':'rgba(59,130,246,.6)';
-
-  const titleMap={daily:'Elevation per Day (ft)',monthly:'Elevation per Month (ft)',yearly:'Elevation per Year (ft)'};
-  document.getElementById('elevation-chart-title').textContent=titleMap[period];
-
-  // bucket by same period logic but using elevation_gain_ft
-  const data=buildPeriodData(items, r=>r.elevation_gain_ft||0);
-
-  if(chartElevation){
-    chartElevation.data.labels=data.map(d=>d.label);
-    chartElevation.data.datasets[0].data=data.map(d=>Math.round(d.val));
-    chartElevation.data.datasets[0].backgroundColor=data.map(d=>d.val>0?colorDim:'rgba(42,51,68,.4)');
-    chartElevation.data.datasets[0].hoverBackgroundColor=color;
-    chartElevation.update();
-  } else {
-    const opts=CHART_OPTS(color);
-    opts.plugins.tooltip.callbacks.label=c=>`${c.parsed.y.toLocaleString()} ft`;
-    chartElevation=new Chart(document.getElementById('chart-elevation').getContext('2d'),{
-      type:'bar',
-      data:{
-        labels:data.map(d=>d.label),
-        datasets:[{
-          data:data.map(d=>Math.round(d.val)),
-          backgroundColor:data.map(d=>d.val>0?colorDim:'rgba(42,51,68,.4)'),
-          hoverBackgroundColor:color,
-          borderRadius:3, borderSkipped:false,
-        }]
-      },
-      options:opts
-    });
-  }
-}
 
 // ═══════════════════════════════════════════════════
 // PACE / SPEED TREND  (scatter + rolling avg)
@@ -1612,7 +1612,6 @@ async function init(data){
   renderCalendar(app.runs||[],app.rides||[]);
   updateProgressChart();
   updateCumulativeChart();
-  updateElevationChart();
   updatePaceChart();
   updateHRZonesChart();
   updateDistChart();
