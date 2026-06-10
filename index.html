@@ -1066,7 +1066,7 @@ function renderGallery() {
   document.getElementById('gallery-label').textContent = isRide ? 'Ride Memories' : 'Race Memories';
   document.getElementById('gallery-title').textContent = isRide ? 'On The Road' : 'On The Course';
   const grid = document.getElementById('gallery-grid');
-  grid.className = 'gallery-grid reveal' + (isRide ? ' bike-gallery' : '');
+  grid.classList.toggle('bike-gallery', isRide);
   grid.innerHTML = activePhotos.map((p, i) => `
     <div class="g-item" onclick="openLightbox(${i})">
       <img src="${activeBase}${p.file}" alt="${p.caption}" loading="lazy">
