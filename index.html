@@ -93,8 +93,8 @@
       border-radius:20px; padding:.2rem .65rem;
     }
     .live-dot {
-      width:6px; height:6px; border-radius:50%; background:var(--run);
-      animation:pulse 2s ease infinite;
+      width:6px; height:6px; border-radius:50%; background:var(--accent);
+      animation:pulse 2s ease infinite; transition:background .3s;
     }
     @keyframes pulse {
       0%,100% { opacity:1; } 50% { opacity:.3; }
@@ -889,6 +889,7 @@ function setMode(m){
   document.getElementById('hero').style.backgroundImage = isRide
     ? `url('${BIKE_BASE}IMG_4635.JPG')`
     : `url('${RUN_BASE}RUNTHEGREEN-251_websize%20(1).jpg')`;
+  updateLastActivityPill();
   if(isRide) renderBikePRs(app.rides||[]);
   else renderRunPRs(app.prs||{});
   renderGallery();
@@ -919,13 +920,16 @@ function renderHero(a){
   document.getElementById('hero-meta').innerHTML=
     `<strong>${a.name}</strong> · ${a.city}, ${a.state} · Running since ${new Date().getFullYear()-yrs+1}`;
 
-  // Last run
-  const last=app.runs[0];
-  if(last){
-    const days=Math.round((new Date()-new Date(last.date+'T00:00:00'))/864e5);
-    const ago=days===0?'today':days===1?'yesterday':`${days}d ago`;
-    document.getElementById('last-run-text').textContent=`${last.distance_miles.toFixed(1)}mi · ${ago}`;
-  }
+  updateLastActivityPill();
+}
+
+function updateLastActivityPill(){
+  const isRide=mode==='ride';
+  const last=(isRide?app.rides:app.runs)[0];
+  if(!last)return;
+  const days=Math.round((new Date()-new Date(last.date+'T00:00:00'))/864e5);
+  const ago=days===0?'today':days===1?'yesterday':`${days}d ago`;
+  document.getElementById('last-run-text').textContent=`${last.distance_miles.toFixed(1)}mi · ${ago}`;
 }
 
 function updateHeroStats(){
