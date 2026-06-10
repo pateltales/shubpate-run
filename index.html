@@ -265,12 +265,12 @@
       transition:border-color .2s, transform .2s;
       cursor:default;
     }
-    .pr-card:hover { border-color:var(--run); transform:translateY(-3px); }
+    .pr-card:hover { border-color:var(--accent); transform:translateY(-3px); }
     .pr-card::after {
       content:''; position:absolute; top:0; left:0; right:0; height:2px;
-      background:linear-gradient(90deg, var(--run), transparent);
+      background:linear-gradient(90deg, var(--accent), transparent);
     }
-    .pr-dist { font-family:var(--mono); font-size:.65rem; color:var(--run); text-transform:uppercase; letter-spacing:.1em; margin-bottom:.75rem; }
+    .pr-dist { font-family:var(--mono); font-size:.65rem; color:var(--accent); text-transform:uppercase; letter-spacing:.1em; margin-bottom:.75rem; }
     .pr-time { font-family:var(--sans); font-size:1.9rem; font-weight:700; letter-spacing:-.03em; line-height:1; margin-bottom:.4rem; }
     .pr-date { font-size:.73rem; color:var(--text-muted); }
     .pr-name { font-size:.75rem; color:var(--text-muted); margin-top:.35rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -492,6 +492,16 @@
     #lightbox-prev { left: 1.25rem; }
     #lightbox-next { right: 1.25rem; }
     #lightbox-prev:hover, #lightbox-next:hover { background: rgba(255,255,255,.18); }
+    /* 5-item bike gallery layout */
+    .gallery-grid.bike-gallery {
+      grid-template-rows: 260px 220px;
+    }
+    .gallery-grid.bike-gallery .g-item:nth-child(1) { grid-column: span 4; grid-row: span 1; }
+    .gallery-grid.bike-gallery .g-item:nth-child(2) { grid-column: span 4; grid-row: span 1; }
+    .gallery-grid.bike-gallery .g-item:nth-child(3) { grid-column: span 4; grid-row: span 1; }
+    .gallery-grid.bike-gallery .g-item:nth-child(4) { grid-column: span 6; grid-row: span 1; }
+    .gallery-grid.bike-gallery .g-item:nth-child(5) { grid-column: span 6; grid-row: span 1; }
+
     @media(max-width:700px) {
       .gallery-grid {
         grid-template-columns: 1fr 1fr;
@@ -503,6 +513,15 @@
       .gallery-grid .g-item:nth-child(4) { grid-column: span 1; grid-row: span 1; }
       .gallery-grid .g-item:nth-child(5) { grid-column: span 1; grid-row: span 1; }
       .gallery-grid .g-item:nth-child(6) { grid-column: span 2; grid-row: span 1; }
+      .gallery-grid.bike-gallery {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: repeat(3, 170px);
+      }
+      .gallery-grid.bike-gallery .g-item:nth-child(1) { grid-column: span 1; grid-row: span 1; }
+      .gallery-grid.bike-gallery .g-item:nth-child(2) { grid-column: span 1; grid-row: span 1; }
+      .gallery-grid.bike-gallery .g-item:nth-child(3) { grid-column: span 2; grid-row: span 1; }
+      .gallery-grid.bike-gallery .g-item:nth-child(4) { grid-column: span 1; grid-row: span 1; }
+      .gallery-grid.bike-gallery .g-item:nth-child(5) { grid-column: span 1; grid-row: span 1; }
     }
 
     /* ── FOOTER ── */
@@ -634,7 +653,7 @@
 <div class="section" id="prs">
   <div class="reveal">
     <div class="section-label">Personal Records</div>
-    <div class="section-title">Best Times</div>
+    <div class="section-title" id="prs-title">Best Times</div>
   </div>
   <div class="prs-grid reveal" id="prs-grid"></div>
 </div>
@@ -642,8 +661,8 @@
 <!-- ── GALLERY ── -->
 <div class="section" id="gallery">
   <div class="reveal">
-    <div class="section-label">Race Memories</div>
-    <div class="section-title">On The Course</div>
+    <div class="section-label" id="gallery-label">Race Memories</div>
+    <div class="section-title" id="gallery-title">On The Course</div>
   </div>
   <div class="gallery-grid reveal" id="gallery-grid"></div>
 </div>
@@ -867,12 +886,9 @@ function setMode(m){
   document.querySelectorAll('#btn-run,.mode-btn:first-child').forEach(b=>b.className='mode-btn'+(m==='run'?' run-on':''));
   document.querySelectorAll('#btn-ride,.mode-btn:last-child').forEach(b=>b.className='mode-btn'+(m==='ride'?' ride-on':''));
 
-  // PRs only for runs
-  const prsEl=document.getElementById('prs');
-  prsEl.style.transition='opacity .3s';
-  prsEl.style.opacity=isRide?.3:1;
-  prsEl.style.pointerEvents=isRide?'none':'';
-
+  if(isRide) renderBikePRs(app.rides||[]);
+  else renderRunPRs(app.prs||{});
+  renderGallery();
   updateHeroStats();
   updateProgressChart();
   updateCumulativeChart();
@@ -943,7 +959,8 @@ function updateFacts(){
 // ═══════════════════════════════════════════════════
 // PRs
 // ═══════════════════════════════════════════════════
-function renderPRs(prs){
+function renderRunPRs(prs){
+  document.getElementById('prs-title').textContent='Best Times';
   const labels={'5k':'5 Kilometer','10k':'10 Kilometer','half_marathon':'Half Marathon','marathon':'Marathon'};
   document.getElementById('prs-grid').innerHTML=Object.entries(prs).map(([k,pr])=>`
     <div class="pr-card">
@@ -954,11 +971,40 @@ function renderPRs(prs){
     </div>`).join('');
 }
 
+function computeBikePRs(rides){
+  const cats={
+    short:  rides.filter(r=>r.distance_category==='short'  && r.speed_mph!=null),
+    medium: rides.filter(r=>r.distance_category==='medium' && r.speed_mph!=null),
+    long:   rides.filter(r=>r.distance_category==='long'   && r.speed_mph!=null),
+    gran_fondo: rides.filter(r=>r.distance_category==='gran_fondo'),
+  };
+  const labels={short:'Short (< 10 mi)',medium:'City Ride (10–25 mi)',long:'Long Ride (25–50 mi)',gran_fondo:'Gran Fondo (50+ mi)'};
+  const result={};
+  Object.entries(cats).forEach(([cat,arr])=>{
+    if(!arr.length)return;
+    const best=arr.reduce((a,b)=>(b.speed_mph||0)>(a.speed_mph||0)?b:a);
+    result[cat]={...best,label:labels[cat]};
+  });
+  return result;
+}
+
+function renderBikePRs(rides){
+  document.getElementById('prs-title').textContent='Best Rides';
+  const prs=computeBikePRs(rides);
+  document.getElementById('prs-grid').innerHTML=Object.values(prs).map(pr=>`
+    <div class="pr-card">
+      <div class="pr-dist">${pr.label}</div>
+      <div class="pr-time">${pr.speed_mph} mph</div>
+      <div class="pr-date">${fmtFull(pr.date)} · ${pr.distance_miles.toFixed(1)} mi</div>
+      <div class="pr-name" title="${pr.name}">${pr.name}</div>
+    </div>`).join('');
+}
+
 // ═══════════════════════════════════════════════════
 // GALLERY + LIGHTBOX
 // ═══════════════════════════════════════════════════
-const BASE = 'https://pateltales-photography.s3.us-east-2.amazonaws.com/shubpate-run/';
-const PHOTOS = [
+const RUN_BASE = 'https://pateltales-photography.s3.us-east-2.amazonaws.com/shubpate-run/';
+const RUN_PHOTOS = [
   { file: 'csrd1%20(1).jpg',            caption: 'CSRD Race Day' },
   { file: 'RTG26_333.jpg',              caption: 'Run The Green · 2026' },
   { file: 'RUNTHEGREEN-1079_websize.jpg', caption: 'Run The Green · Finish Line' },
@@ -966,15 +1012,23 @@ const PHOTOS = [
   { file: 'GFR_2024_1621.jpg',           caption: 'GFR 2024' },
   { file: 'Screenshot_2023-11-07_at_2.01.04%20PM-transformed%20(1)_auto_x2.jpg', caption: 'Race Day · 2023' },
 ];
+const BIKE_BASE = 'https://pateltales-photography.s3.us-east-2.amazonaws.com/shubpate-bike/';
+const BIKE_PHOTOS = [
+  { file: 'IMG_4208.JPG',  caption: 'Out on the Road' },
+  { file: 'IMG_4322.JPG',  caption: 'Ride Day' },
+  { file: 'IMG_4484.JPG',  caption: 'In the Saddle' },
+  { file: 'IMG_4635.JPG',  caption: 'Miles on Miles' },
+  { file: 'dji_mimo_20260510_101802_20260510101802_1778453496695_photo.JPG', caption: 'Aerial View · May 2026' },
+];
 
 let lbIdx = 0;
+let activePhotos = RUN_PHOTOS, activeBase = RUN_BASE;
 
 function openLightbox(i) {
   lbIdx = i;
-  const lb = document.getElementById('lightbox');
-  document.getElementById('lightbox-img').src = BASE + PHOTOS[i].file;
-  document.getElementById('lightbox-caption').textContent = PHOTOS[i].caption;
-  lb.classList.add('open');
+  document.getElementById('lightbox-img').src = activeBase + activePhotos[i].file;
+  document.getElementById('lightbox-caption').textContent = activePhotos[i].caption;
+  document.getElementById('lightbox').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
 
@@ -984,21 +1038,12 @@ function closeLightbox() {
 }
 
 function stepLightbox(dir) {
-  lbIdx = (lbIdx + dir + PHOTOS.length) % PHOTOS.length;
-  document.getElementById('lightbox-img').src = BASE + PHOTOS[lbIdx].file;
-  document.getElementById('lightbox-caption').textContent = PHOTOS[lbIdx].caption;
+  lbIdx = (lbIdx + dir + activePhotos.length) % activePhotos.length;
+  document.getElementById('lightbox-img').src = activeBase + activePhotos[lbIdx].file;
+  document.getElementById('lightbox-caption').textContent = activePhotos[lbIdx].caption;
 }
 
-function renderGallery() {
-  const grid = document.getElementById('gallery-grid');
-  grid.innerHTML = PHOTOS.map((p, i) => `
-    <div class="g-item" onclick="openLightbox(${i})">
-      <img src="${BASE}${p.file}" alt="${p.caption}" loading="lazy">
-      <div class="g-item-overlay">
-        <span class="g-item-caption">${p.caption}</span>
-      </div>
-    </div>`).join('');
-
+function setupLightbox() {
   document.getElementById('lightbox-close').onclick = closeLightbox;
   document.getElementById('lightbox-prev').onclick = () => stepLightbox(-1);
   document.getElementById('lightbox-next').onclick = () => stepLightbox(1);
@@ -1012,6 +1057,23 @@ function renderGallery() {
     if (e.key === 'ArrowLeft') stepLightbox(-1);
     if (e.key === 'ArrowRight') stepLightbox(1);
   });
+}
+
+function renderGallery() {
+  const isRide = mode === 'ride';
+  activeBase = isRide ? BIKE_BASE : RUN_BASE;
+  activePhotos = isRide ? BIKE_PHOTOS : RUN_PHOTOS;
+  document.getElementById('gallery-label').textContent = isRide ? 'Ride Memories' : 'Race Memories';
+  document.getElementById('gallery-title').textContent = isRide ? 'On The Road' : 'On The Course';
+  const grid = document.getElementById('gallery-grid');
+  grid.className = 'gallery-grid reveal' + (isRide ? ' bike-gallery' : '');
+  grid.innerHTML = activePhotos.map((p, i) => `
+    <div class="g-item" onclick="openLightbox(${i})">
+      <img src="${activeBase}${p.file}" alt="${p.caption}" loading="lazy">
+      <div class="g-item-overlay">
+        <span class="g-item-caption">${p.caption}</span>
+      </div>
+    </div>`).join('');
 }
 
 // ═══════════════════════════════════════════════════
@@ -1607,8 +1669,9 @@ async function init(data){
   renderHero(app.athlete);
   updateHeroStats();
   updateFacts();
-  renderPRs(app.prs||{});
+  renderRunPRs(app.prs||{});
   renderGallery();
+  setupLightbox();
   renderCalendar(app.runs||[],app.rides||[]);
   updateProgressChart();
   updateCumulativeChart();
