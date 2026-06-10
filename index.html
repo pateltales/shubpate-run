@@ -886,9 +886,11 @@ function setMode(m){
   document.querySelectorAll('#btn-run,.mode-btn:first-child').forEach(b=>b.className='mode-btn'+(m==='run'?' run-on':''));
   document.querySelectorAll('#btn-ride,.mode-btn:last-child').forEach(b=>b.className='mode-btn'+(m==='ride'?' ride-on':''));
 
-  document.getElementById('hero').style.backgroundImage = isRide
+  const heroEl = document.getElementById('hero');
+  heroEl.style.backgroundImage = isRide
     ? `url('${BIKE_BASE}IMG_4635.JPG')`
     : `url('${RUN_BASE}RUNTHEGREEN-251_websize%20(1).jpg')`;
+  heroEl.style.backgroundPosition = isRide ? 'center 60%' : 'center 30%';
   updateLastActivityPill();
   if(isRide) renderBikePRs(app.rides||[]);
   else renderRunPRs(app.prs||{});
