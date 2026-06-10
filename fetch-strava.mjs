@@ -193,26 +193,19 @@ function formatActivity(a, type) {
   console.log(`  Runs:  ${rawRuns.length}`);
   console.log(`  Rides: ${rawRides.length}`);
 
-  // Run PRs — compare by pace (sec/mile), not raw time, so a short 3-mile
-  // run doesn't beat an actual 5K race just because it finished sooner.
-  const PR_TARGETS = { '5k': 3.107, '10k': 6.214, 'half_marathon': 13.109, 'marathon': 26.219 };
-  const prCategories = { '5k': [], '10k': [], 'half_marathon': [], 'marathon': [] };
-  rawRuns.forEach(r => {
-    const cat = classifyRunDistance(r.distance);
-    if (prCategories[cat]) {
-      const miles = r.distance / 1609.344;
-      const secsPerMile = r.moving_time / miles;
-      prCategories[cat].push({ secsPerMile, moving_time: r.moving_time, distance: r.distance, date: r.start_date, name: r.name });
-    }
-  });
+  // Run PRs — only consider runs within ±15% of each standard distance so
+  // a fast training run at a different distance can't distort the projected time.
+  const PR_TARGETS = { '5k': 3.107, '10k': 6.214, 'half_marathon': 13.109, 'marathon': 26.219 }; // miles
   const prs = {};
-  for (const [dist, efforts] of Object.entries(prCategories)) {
-    if (efforts.length) {
-      // Pick the effort with the fastest pace
-      const best = efforts.reduce((a, b) => a.secsPerMile < b.secsPerMile ? a : b);
-      // Project that pace to the exact standard distance
-      const prSecs = Math.round(best.secsPerMile * PR_TARGETS[dist]);
-      prs[dist] = { time: formatTime(prSecs), date: best.date.split('T')[0], name: best.name };
+  for (const [dist, targetMiles] of Object.entries(PR_TARGETS)) {
+    const lo = targetMiles * 0.85;
+    const hi = targetMiles * 1.15;
+    const candidates = rawRuns
+      .filter(r => { const mi = r.distance / 1609.344; return mi >= lo && mi <= hi; })
+      .map(r => ({ secsPerMile: r.moving_time / (r.distance / 1609.344), date: r.start_date, name: r.name }));
+    if (candidates.length) {
+      const best = candidates.reduce((a, b) => a.secsPerMile < b.secsPerMile ? a : b);
+      prs[dist] = { time: formatTime(Math.round(best.secsPerMile * targetMiles)), date: best.date.split('T')[0], name: best.name };
     }
   }
 
