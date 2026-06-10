@@ -336,27 +336,6 @@
     .cal-lc { width:12px; height:12px; border-radius:2px; flex-shrink:0; }
     .cal-legend-sep { width:1px; height:12px; background:var(--border); margin:0 6px; }
 
-    /* ── ACHIEVEMENTS ── */
-    .badges-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; }
-    .badge-card {
-      background:var(--surface); border:1px solid var(--border);
-      border-radius:var(--r); padding:1.25rem;
-      display:flex; flex-direction:column; gap:.5rem;
-      transition:border-color .2s, transform .2s;
-      position:relative; overflow:hidden;
-    }
-    .badge-card.earned:hover { border-color:var(--amber); transform:translateY(-2px); }
-    .badge-card.locked { opacity:.35; filter:grayscale(1); }
-    .badge-card.earned::before {
-      content:''; position:absolute; inset:0;
-      background:radial-gradient(circle at 20% 20%, rgba(245,158,11,.07), transparent 60%);
-    }
-    .badge-icon { font-size:1.6rem; line-height:1; }
-    .badge-name { font-family:var(--sans); font-size:.88rem; font-weight:700; color:var(--text); }
-    .badge-desc { font-size:.75rem; color:var(--text-muted); line-height:1.4; }
-    .badge-meta { font-family:var(--mono); font-size:.65rem; color:var(--amber); margin-top:auto; }
-    .badge-card.locked .badge-meta { color:var(--text-subtle); }
-
     /* ── TOOLTIP ── */
     #tip {
       position:fixed; background:var(--surface2); border:1px solid var(--border);
@@ -547,7 +526,6 @@
       .hero-tag { justify-content:center; }
       .hero-stats-grid { grid-template-columns:repeat(4,1fr); }
       .prs-grid { grid-template-columns:repeat(2,1fr); }
-      .badges-grid { grid-template-columns:repeat(2,1fr); }
       .charts-row, .charts-row-wide { grid-template-columns:1fr; }
       .facts-inner { grid-template-columns:repeat(2,1fr); }
     }
@@ -558,7 +536,6 @@
       .hero { padding:4.5rem 1rem 3rem; }
       .hero-stats-grid { grid-template-columns:repeat(2,1fr); }
       .prs-grid { grid-template-columns:repeat(2,1fr); }
-      .badges-grid { grid-template-columns:repeat(2,1fr); }
       .facts-inner { grid-template-columns:1fr; }
       .log-table th:nth-child(n+5), .log-table td:nth-child(n+5) { display:none; }
     }
@@ -580,7 +557,6 @@
     <a href="#prs">PRs</a>
     <a href="#progress">Progress</a>
     <a href="#activity">Calendar</a>
-    <a href="#achievements">Badges</a>
     <a href="#log">Log</a>
   </div>
   <div class="nav-right">
@@ -757,14 +733,6 @@
   </div>
 </div>
 
-<!-- ── ACHIEVEMENTS ── -->
-<div class="section" id="achievements">
-  <div class="reveal">
-    <div class="section-label">Milestones</div>
-    <div class="section-title">Achievements</div>
-  </div>
-  <div class="badges-grid reveal" id="badges-grid"></div>
-</div>
 
 <!-- ── LOG ── -->
 <div class="section" id="log">
@@ -890,7 +858,7 @@ function setMode(m){
   heroEl.style.backgroundImage = isRide
     ? `url('${BIKE_BASE}IMG_4635.JPG')`
     : `url('${RUN_BASE}RUNTHEGREEN-251_websize%20(1).jpg')`;
-  heroEl.style.backgroundPosition = isRide ? 'center 20%' : 'center 30%';
+  heroEl.style.backgroundPosition = isRide ? 'center 55%' : 'center 30%';
   updateLastActivityPill();
   if(isRide) renderBikePRs(app.rides||[]);
   else renderRunPRs(app.prs||{});
@@ -1508,61 +1476,6 @@ function renderCalendar(runs, rides){
 }
 
 // ═══════════════════════════════════════════════════
-// ACHIEVEMENTS
-// ═══════════════════════════════════════════════════
-function renderAchievements(runs, prs){
-  const totalMi=runs.reduce((s,r)=>s+r.distance_miles,0);
-  const totalElev=runs.reduce((s,r)=>s+(r.elevation_gain_ft||0),0);
-  const streak=computeStreak(runs);
-
-  const monthMap={};
-  runs.forEach(r=>{const k=ym(r.date);monthMap[k]=(monthMap[k]||0)+r.distance_miles;});
-  const bestMonth=Object.entries(monthMap).sort((a,b)=>b[1]-a[1])[0];
-  const bestMonthMi=bestMonth?bestMonth[1]:0;
-  const bestMonthKey=bestMonth?bestMonth[0]:'';
-
-  const has=(cat)=>runs.some(r=>r.distance_category===cat);
-  const hasRace=runs.some(r=>r.is_race);
-  const years=new Set(runs.map(r=>yr(r.date))).size;
-
-  // Pre-compute values that can't be IIFEs inside object literals
-  const yrRunMap={};
-  runs.forEach(r=>{const y=yr(r.date);yrRunMap[y]=(yrRunMap[y]||0)+1;});
-  const isConsistencyKing=Object.values(yrRunMap).some(v=>v>=100);
-
-  const longHaulerRun=runs.filter(r=>r.distance_miles>=20).sort((a,b)=>b.distance_miles-a.distance_miles)[0];
-  const longHaulerMeta=longHaulerRun?`${longHaulerRun.distance_miles.toFixed(1)} mi · ${fmtFull(longHaulerRun.date)}`:'';
-
-  const speedDemonRun=runs.filter(r=>r.distance_miles>=10&&r.pace&&paceS(r.pace)<480).sort((a,b)=>paceS(a.pace)-paceS(b.pace))[0];
-  const speedDemonMeta=speedDemonRun?`Best: ${speedDemonRun.pace}/mi`:'';
-
-  const BADGES=[
-    { icon:'🏅', name:'Marathon Finisher', desc:'Completed a full 26.2', earned:has('marathon'), meta:prs?.marathon?.date?`${fmtFull(prs.marathon.date)} · ${prs.marathon.time}`:'Earned' },
-    { icon:'⚡', name:'Sub-20 5K', desc:'Ran a 5K in under 20 minutes', earned:prs?.['5k']&&timeS(prs['5k'].time)<1200, meta:prs?.['5k']?prs['5k'].time:'' },
-    { icon:'💯', name:'Century Month', desc:`${Math.round(bestMonthMi)} mi in one month`, earned:bestMonthMi>=100, meta:bestMonthKey?new Date(bestMonthKey+'-01T00:00:00').toLocaleDateString('en-US',{month:'long',year:'numeric'}):'' },
-    { icon:'🦁', name:'Long Hauler', desc:'Ran 20+ miles in one go', earned:runs.some(r=>r.distance_miles>=20), meta:longHaulerMeta },
-    { icon:'⭐', name:'5,000 Mile Club', desc:'5,000+ career miles logged', earned:totalMi>=5000, meta:`${totalMi.toFixed(0)} mi total` },
-    { icon:'🔥', name:'Iron Streak', desc:'7+ consecutive days running', earned:streak>=7, meta:`Longest: ${streak} days` },
-    { icon:'🏔️', name:'Mountain Mover', desc:'Climbed Everest 10× in elevation', earned:totalElev>=290320, meta:`${(totalElev/29032).toFixed(1)}× Everest total` },
-    { icon:'🗓️', name:'Decade of Miles', desc:'Running consistently for 10+ years', earned:years>=10, meta:`${years} active years` },
-    { icon:'🏆', name:'Race Day', desc:'Toed the start line of an official race', earned:hasRace, meta:`${app.run_stats.total_races} races finished` },
-    { icon:'🌅', name:'Half Marathon Hero', desc:'Completed a half marathon', earned:has('half_marathon'), meta:prs?.half_marathon?`PR: ${prs.half_marathon.time}`:'' },
-    { icon:'💎', name:'Consistency King', desc:'Ran 100+ times in a single year', earned:isConsistencyKing, meta:`${runs.length} total runs` },
-    { icon:'🚀', name:'Speed Demon', desc:'Sub-8 min/mi pace over 10+ miles', earned:!!speedDemonRun, meta:speedDemonMeta },
-  ];
-
-  document.getElementById('badges-grid').innerHTML=BADGES.map(b=>{
-    const meta=typeof b.meta==='function'?b.meta():b.meta;
-    return `<div class="badge-card ${b.earned?'earned':'locked'}">
-      <div class="badge-icon">${b.icon}</div>
-      <div class="badge-name">${b.name}</div>
-      <div class="badge-desc">${b.desc}</div>
-      ${b.earned&&meta?`<div class="badge-meta">${meta}</div>`:''}
-    </div>`;
-  }).join('');
-}
-
-// ═══════════════════════════════════════════════════
 // LOG
 // ═══════════════════════════════════════════════════
 function updateLog(){
@@ -1687,7 +1600,6 @@ async function init(data){
   updatePaceChart();
   updateHRZonesChart();
   updateDistChart();
-  renderAchievements(app.runs||[],app.prs||{});
   updateLog();
   setupReveal();
   setupCursorGlow();
