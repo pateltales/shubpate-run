@@ -890,7 +890,7 @@ function setMode(m){
   heroEl.style.backgroundImage = isRide
     ? `url('${BIKE_BASE}IMG_4635.JPG')`
     : `url('${RUN_BASE}RUNTHEGREEN-251_websize%20(1).jpg')`;
-  heroEl.style.backgroundPosition = isRide ? 'center 60%' : 'center 30%';
+  heroEl.style.backgroundPosition = isRide ? 'center 20%' : 'center 30%';
   updateLastActivityPill();
   if(isRide) renderBikePRs(app.rides||[]);
   else renderRunPRs(app.prs||{});
