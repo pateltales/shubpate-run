@@ -404,14 +404,14 @@
       border-radius: var(--r);
       overflow: hidden;
     }
-    /* CSRD (portrait) spans full left column, all 3 rows */
+    /* Portrait spans full left column, all 3 rows; right side 2×3 grid */
     .gallery-grid .g-item:nth-child(1) { grid-column: span 4; grid-row: span 3; }
-    /* landscape photos fill right 8 columns, 2 per row × 3 rows (5 images → last row has 1 wide) */
     .gallery-grid .g-item:nth-child(2) { grid-column: span 4; grid-row: span 1; }
     .gallery-grid .g-item:nth-child(3) { grid-column: span 4; grid-row: span 1; }
     .gallery-grid .g-item:nth-child(4) { grid-column: span 4; grid-row: span 1; }
     .gallery-grid .g-item:nth-child(5) { grid-column: span 4; grid-row: span 1; }
-    .gallery-grid .g-item:nth-child(6) { grid-column: span 8; grid-row: span 1; }
+    .gallery-grid .g-item:nth-child(6) { grid-column: span 4; grid-row: span 1; }
+    .gallery-grid .g-item:nth-child(7) { grid-column: span 4; grid-row: span 1; }
     .g-item {
       position: relative; overflow: hidden; cursor: pointer;
       background: var(--surface2);
@@ -491,7 +491,8 @@
       .gallery-grid .g-item:nth-child(3) { grid-column: span 1; grid-row: span 1; }
       .gallery-grid .g-item:nth-child(4) { grid-column: span 1; grid-row: span 1; }
       .gallery-grid .g-item:nth-child(5) { grid-column: span 1; grid-row: span 1; }
-      .gallery-grid .g-item:nth-child(6) { grid-column: span 2; grid-row: span 1; }
+      .gallery-grid .g-item:nth-child(6) { grid-column: span 1; grid-row: span 1; }
+      .gallery-grid .g-item:nth-child(7) { grid-column: span 1; grid-row: span 1; }
       .gallery-grid.bike-gallery {
         grid-template-columns: 1fr 1fr;
         grid-template-rows: repeat(3, 170px);
@@ -988,6 +989,7 @@ const RUN_PHOTOS = [
   { file: 'RUNTHEGREEN-251_websize%20(1).jpg', caption: 'Run The Green · On Course' },
   { file: 'GFR_2024_1621.jpg',           caption: 'GFR 2024' },
   { file: 'Screenshot_2023-11-07_at_2.01.04%20PM-transformed%20(1)_auto_x2.jpg', caption: 'Race Day · 2023' },
+  { file: '20260522-DSC08641.jpg',       caption: 'May 2026' },
 ];
 const BIKE_BASE = 'https://pateltales-photography.s3.us-east-2.amazonaws.com/shubpate-bike/';
 const BIKE_PHOTOS = [
